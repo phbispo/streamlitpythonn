@@ -19,21 +19,25 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("📊 Dashboard Analítico (com ETL Integrado)")
-st.markdown("Painel interativo com carregamento otimizado (ETL) dos **MICRODADOS.csv**.")
+st.markdown("Painel interativo com carregamento otimizado (ETL).")
 
-# Caminho do arquivo
-FILE_PATH = r"C:\Users\pedro\Downloads\MICRODADOS.csv"
+# Removido o FILE_PATH fixo, permitindo o envio do arquivo direto no site!
+uploaded_file = st.file_uploader("📥 Faça o upload do arquivo MICRODADOS.csv aqui", type=["csv"])
 
 @st.cache_data
-def load_data():
+def load_data(file_buffer):
     try:
         # Descobre as colunas que baterem para não dar erro
         colunas_uteis = ['Municipio', 'Sexo', 'FaixaEtaria', 'Evolucao', 'Classificacao', 'DataNotificacao']
-        colunas_existentes = pd.read_csv(FILE_PATH, sep=';', encoding='latin-1', nrows=0).columns.tolist()
+        
+        # Lendo do buffer carregado
+        colunas_existentes = pd.read_csv(file_buffer, sep=';', encoding='latin-1', nrows=0).columns.tolist()
         colunas_usar = [c for c in colunas_uteis if c in colunas_existentes]
         
+        file_buffer.seek(0) # Retorna o ponteiro do arquivo para o início pra ler de novo
+        
         # Extração - carrega APENAS o necessário, salvando muita memória RAM!
-        df_raw = pd.read_csv(FILE_PATH, sep=';', encoding='latin-1', usecols=colunas_usar)
+        df_raw = pd.read_csv(file_buffer, sep=';', encoding='latin-1', usecols=colunas_usar)
         
         # Transformação (ETL) - Otimização p/ Streamlit
         colunas_categoricas = ['Municipio', 'FaixaEtaria', 'Sexo', 'Classificacao', 'Evolucao']
@@ -42,7 +46,7 @@ def load_data():
                 df_raw[col] = df_raw[col].astype('category')
                 
         if 'DataNotificacao' in df_raw.columns:
-            # Usar apenas a data exata acelerará absurdo o parser de datetime (format='%Y-%m-%d')
+            # Usar format='mixed' acelera extremamente o parse no backend
             df_raw['DataNotificacao'] = pd.to_datetime(df_raw['DataNotificacao'], errors='coerce', format='mixed')
                 
         if 'Municipio' in df_raw.columns:
@@ -55,11 +59,15 @@ def load_data():
         st.code(traceback.format_exc())
         return pd.DataFrame()
 
-with st.spinner("Extraindo e Transformando dados... (Processo de ETL Otimizado - aguarde)"):
-    df = load_data()
+if uploaded_file is not None:
+    with st.spinner("Extraindo e Transformando dados... (Processo de ETL Otimizado - aguarde)"):
+        df = load_data(uploaded_file)
 
-if df.empty:
-    st.warning("Não foi possível processar os dados. Verifique se o arquivo está em C:\\Users\\pedro\\Downloads\\MICRODADOS.csv")
+    if df.empty:
+        st.warning("Não foi possível processar os dados. Verifique a codificação do arquivo CSV.")
+        st.stop()
+else:
+    st.info("👈 Por favor, anexe o arquivo 'MICRODADOS.csv' acima para gerar o dashboard.")
     st.stop()
 
 # --- SIDEBAR: Filtros ---
