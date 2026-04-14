@@ -27,31 +27,32 @@ FILE_PATH = r"C:\Users\pedro\Downloads\MICRODADOS.csv"
 @st.cache_data
 def load_data():
     try:
-        # Extração
-        df_raw = pd.read_csv(FILE_PATH, sep=';', encoding='latin-1', low_memory=False)
+        # Descobre as colunas que baterem para não dar erro
+        colunas_uteis = ['Municipio', 'Sexo', 'FaixaEtaria', 'Evolucao', 'Classificacao', 'DataNotificacao']
+        colunas_existentes = pd.read_csv(FILE_PATH, sep=';', encoding='latin-1', nrows=0).columns.tolist()
+        colunas_usar = [c for c in colunas_uteis if c in colunas_existentes]
+        
+        # Extração - carrega APENAS o necessário, salvando muita memória RAM!
+        df_raw = pd.read_csv(FILE_PATH, sep=';', encoding='latin-1', usecols=colunas_usar)
         
         # Transformação (ETL) - Otimização p/ Streamlit
-        colunas_categoricas = ['Municipio', 'Bairro', 'FaixaEtaria', 'Sexo', 'RacaCor', 
-                               'Escolaridade', 'Classificacao', 'Evolucao', 'CriterioConfirmacao']
+        colunas_categoricas = ['Municipio', 'FaixaEtaria', 'Sexo', 'Classificacao', 'Evolucao']
         for col in colunas_categoricas:
             if col in df_raw.columns:
                 df_raw[col] = df_raw[col].astype('category')
                 
-        colunas_data = ['DataNotificacao', 'DataCadastro', 'DataDiagnostico']
-        for col in colunas_data:
-            if col in df_raw.columns:
-                df_raw[col] = pd.to_datetime(df_raw[col], errors='coerce')
+        if 'DataNotificacao' in df_raw.columns:
+            # Usar apenas a data exata acelerará absurdo o parser de datetime (format='%Y-%m-%d')
+            df_raw['DataNotificacao'] = pd.to_datetime(df_raw['DataNotificacao'], errors='coerce', format='mixed')
                 
         if 'Municipio' in df_raw.columns:
-            # Limpeza rápida de espaço com preenchimento em Nulo onde der problema de categoria se tiver string mixed
             df_raw['Municipio'] = df_raw['Municipio'].astype(str).str.strip().str.upper().astype('category')
             
-        # Descartar colunas 100% vazias
-        df_raw = df_raw.dropna(axis=1, how='all')
-        
         return df_raw
     except Exception as e:
-        st.error(f"Erro ao carregar o arquivo CSV: {e}")
+        import traceback
+        st.error(f"Erro no código ETL ao carregar o arquivo CSV: {e}")
+        st.code(traceback.format_exc())
         return pd.DataFrame()
 
 with st.spinner("Extraindo e Transformando dados... (Processo de ETL Otimizado - aguarde)"):
